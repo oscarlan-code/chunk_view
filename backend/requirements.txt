@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+llama-index
+pymupdf
+pdfplumber
+tesserocr
+pillow
+python-multipart
+sqlalchemy
+asyncpg
+PyPDF2
+python-docx
+requests 
