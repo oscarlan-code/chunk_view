@@ -1,20 +1,13 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from starlette.staticfiles import StaticFiles
 import os
-import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from pydantic import BaseModel
-import asyncio
 from datetime import datetime
 
-# Import our chunking modules
-from chunking.llamaindex_chunker import LlamaIndexChunker
-from chunking.langchain_chunker import LangChainChunker
-from chunking.base_chunker import ChunkResult
-
-app = FastAPI(title="Chunk View API", version="1.0.0")
+app = FastAPI(title="Chunk Viewer API", version="1.0.0")
 
 # CORS middleware
 app.add_middleware(
@@ -44,20 +37,11 @@ class ChunkingResponse(BaseModel):
     chunks: List[Dict[str, Any]]
     total_chunks: int
     processing_time: float
-    metadata: Optional[Dict[str, Any]] = None
 
 class ChunkComparisonRequest(BaseModel):
     file_path: str
     methods: List[str]
     parameters: Dict[str, Dict[str, Any]]
-
-class ChunkComparisonResponse(BaseModel):
-    comparisons: List[ChunkingResponse]
-    file_info: Dict[str, Any]
-
-# Initialize chunkers
-llamaindex_chunker = LlamaIndexChunker()
-langchain_chunker = LangChainChunker()
 
 @app.get("/")
 async def root():
@@ -66,10 +50,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
-
-@app.get("/test")
-async def test_endpoint():
-    return {"message": "Test endpoint working", "files_count": len(os.listdir(UPLOAD_DIR)) if os.path.exists(UPLOAD_DIR) else 0}
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -85,65 +65,18 @@ async def upload_file(file: UploadFile = File(...)):
     
     return {"file_path": file_path, "filename": file.filename}
 
-@app.get("/files")
-async def list_uploaded_files():
-    """List all uploaded files."""
-    try:
-        files = []
-        if os.path.exists(UPLOAD_DIR):
-            for filename in os.listdir(UPLOAD_DIR):
-                file_path = os.path.join(UPLOAD_DIR, filename)
-                if os.path.isfile(file_path):
-                    stat = os.stat(file_path)
-                    files.append({
-                        "filename": filename,
-                        "file_path": file_path,
-                        "file_size": stat.st_size,
-                        "upload_date": datetime.fromtimestamp(stat.st_mtime).isoformat()
-                    })
-        
-        # Sort by upload date (newest first)
-        files.sort(key=lambda x: x["upload_date"], reverse=True)
-        return files
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}")
-
-@app.post("/chunk", response_model=ChunkingResponse)
-async def chunk_document(request: ChunkingRequest):
-    """Chunk a document using specified method and parameters."""
-    try:
-        start_time = datetime.now()
-        
-        if request.method == "llamaindex":
-            result = await llamaindex_chunker.chunk_document(
-                request.file_path, 
-                request.parameters
-            )
-        elif request.method == "langchain":
-            result = await langchain_chunker.chunk_document(
-                request.file_path, 
-                request.parameters
-            )
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown method: {request.method}")
-        
-        processing_time = (datetime.now() - start_time).total_seconds()
-        
-        return ChunkingResponse(
-            method=request.method,
-            parameters=request.parameters,
-            chunks=result.chunks,
-            total_chunks=len(result.chunks),
-            processing_time=processing_time
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chunking failed: {str(e)}")
-
-@app.post("/chunk/compare", response_model=ChunkComparisonResponse)
+@app.post("/chunk/compare")
 async def compare_chunking_methods(request: ChunkComparisonRequest):
     """Compare different chunking methods on the same document."""
     try:
+        # Import chunking modules
+        from chunking.llamaindex_chunker import LlamaIndexChunker
+        from chunking.langchain_chunker import LangChainChunker
+        
+        # Initialize chunkers
+        llamaindex_chunker = LlamaIndexChunker()
+        langchain_chunker = LangChainChunker()
+        
         comparisons = []
         
         for method in request.methods:
@@ -169,8 +102,7 @@ async def compare_chunking_methods(request: ChunkComparisonRequest):
                 parameters=request.parameters.get(method, {}),
                 chunks=result.chunks,
                 total_chunks=len(result.chunks),
-                processing_time=processing_time,
-                metadata=result.metadata
+                processing_time=processing_time
             ))
         
         # Get file info
@@ -180,10 +112,10 @@ async def compare_chunking_methods(request: ChunkComparisonRequest):
             "file_type": os.path.splitext(request.file_path)[1]
         }
         
-        return ChunkComparisonResponse(
-            comparisons=comparisons,
-            file_info=file_info
-        )
+        return {
+            "comparisons": comparisons,
+            "file_info": file_info
+        }
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")
@@ -212,7 +144,7 @@ async def get_available_methods():
                     "separators": {"type": "list", "default": ["\n\n", "\n", " ", ""]},
                     "keep_separator": {"type": "bool", "default": False}
                 }
-            },
+            }
         }
     }
 
@@ -221,4 +153,4 @@ if __name__ == "__main__":
     print("🚀 Starting Chunk Viewer API...")
     print("📡 Server will be available at: http://localhost:8000")
     print("📚 API documentation at: http://localhost:8000/docs")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main_simple:app", host="0.0.0.0", port=8000, reload=True)
