@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Test</title>
+</head>
+<body>
+    <h1>Upload Test</h1>
+    <input type="file" id="fileInput" accept=".pdf,.txt,.doc,.docx">
+    <button onclick="uploadFile()">Upload</button>
+    <div id="result"></div>
+
+    <script>
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('http://localhost:8000/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const result = await response.json();
+                document.getElementById('result').innerHTML = 
+                    `<p>Success! File path: ${result.file_path}</p>`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    `<p>Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

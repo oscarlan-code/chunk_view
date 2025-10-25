@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Text Viewer Test</title>
+    <style>
+        .highlight {
+            background-color: #fff3b0;
+            padding: 2px 4px;
+            border-radius: 3px;
+            border: 1px solid #fbbf24;
+            font-weight: 500;
+        }
+        .text-container {
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Text Viewer Test</h1>
+    
+    <div id="textContainer" class="text-container">
+        Loading extracted text...
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <button onclick="highlightChunk(0, 100)">Highlight Chunk 1</button>
+        <button onclick="highlightChunk(100, 200)">Highlight Chunk 2</button>
+        <button onclick="highlightChunk(200, 300)">Highlight Chunk 3</button>
+        <button onclick="clearHighlight()">Clear</button>
+    </div>
+
+    <script>
+        let fullText = '';
+        
+        // Load extracted text from backend
+        async function loadExtractedText() {
+            try {
+                const response = await fetch('http://localhost:8000/chunk/compare', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        file_path: 'uploads/manual.pdf',
+                        methods: ['pdf_coordinate'],
+                        parameters: {
+                            pdf_coordinate: {
+                                chunk_size: 1000,
+                                chunk_overlap: 200,
+                                extract_coordinates: true,
+                                coordinate_precision: 'high'
+                            }
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                fullText = data.comparisons[0].metadata.extracted_text;
+                
+                document.getElementById('textContainer').textContent = fullText.substring(0, 2000) + '...';
+                console.log('Loaded text length:', fullText.length);
+            } catch (error) {
+                console.error('Error loading text:', error);
+                document.getElementById('textContainer').textContent = 'Error loading text: ' + error.message;
+            }
+        }
+        
+        function highlightChunk(start, end) {
+            if (!fullText) {
+                alert('Text not loaded yet');
+                return;
+            }
+            
+            const beforeText = fullText.substring(0, start);
+            const highlightText = fullText.substring(start, end);
+            const afterText = fullText.substring(end);
+            
+            const highlightedHTML = beforeText + 
+                '<span class="highlight">' + highlightText + '</span>' + 
+                afterText;
+            
+            document.getElementById('textContainer').innerHTML = highlightedHTML;
+        }
+        
+        function clearHighlight() {
+            document.getElementById('textContainer').textContent = fullText.substring(0, 2000) + '...';
+        }
+        
+        // Load text on page load
+        loadExtractedText();
+    </script>
+</body>
+</html>
